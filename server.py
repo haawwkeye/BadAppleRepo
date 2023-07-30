@@ -152,11 +152,11 @@ def get_pixels():
     newFrames = [];
     lastUpdatedPixel = [];
     frameCount = 0;
-    printProgressBar(0, len(frames), prefix = 'Progress:', suffix = 'Complete', length = 50)
+    
     for frame in frames:
         i = 0;
         currentFrame = [];
-        printProgressBar(frameCount, 6576, prefix = 'Progress:', suffix = 'Complete', length = 50)
+        printProgressBar(frameCount, len(frames), prefix = 'Progress:', suffix = f"Complete ({frameCount}/{len(frames)})", length = 50)
         for pixel in frame:
             if (len(lastUpdatedPixel) < (i+1) or lastUpdatedPixel[i] is None or lastUpdatedPixel[i] != pixel):
                 lastUpdatedPixel.insert(i, pixel);

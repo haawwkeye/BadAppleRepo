@@ -1,1 +1,5 @@
 /test.mp4
+/cache/*
+!/cache/.gitkeep
+!/cache/badapple.mp4_85x64_v1.json
+!/cache/badapple.mp4_85x64_v2.json

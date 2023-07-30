@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import json
+import os.path as path
 
 import multiprocessing as mp
 
@@ -15,6 +16,28 @@ COLOR_ACCURACY = 50 # How many colors are allowed for 1 pixel
 app = Flask(__name__)
 
 warnings.filterwarnings("ignore", message="The default value of `n_init` will change from 3 to 'auto' in 1.4.")
+
+# Print iterations progress
+def printProgressBar (iteration, total, prefix = '', suffix = '', decimals = 1, length = 100, fill = '█', printEnd = "\r"):
+    """
+    Call in a loop to create terminal progress bar
+    @params:
+        iteration   - Required  : current iteration (Int)
+        total       - Required  : total iterations (Int)
+        prefix      - Optional  : prefix string (Str)
+        suffix      - Optional  : suffix string (Str)
+        decimals    - Optional  : positive number of decimals in percent complete (Int)
+        length      - Optional  : character length of bar (Int)
+        fill        - Optional  : bar fill character (Str)
+        printEnd    - Optional  : end character (e.g. "\r", "\r\n") (Str)
+    """
+    percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
+    filledLength = int(length * iteration // total)
+    bar = fill * filledLength + '-' * (length - filledLength)
+    print(f'\r{prefix} |{bar}| {percent}% {suffix}', end = printEnd)
+    # Print New Line on Complete
+    if iteration == total: 
+        print()
 
 # Define a function to convert an RGB color to hex format
 def process_pixel(pixel):
@@ -73,36 +96,85 @@ def get_pixels():
     WIDTH = int(request.args.get('width', 100))
     HEIGHT = int(request.args.get('height', 100))
 
+    video_path_v1 = f"cache/{video}_{WIDTH}x{HEIGHT}_v1.json"
+    video_path_v2 = f"cache/{video}_{WIDTH}x{HEIGHT}_v2.json"
+
     print(gray_scale)
     print(video)
 
     print(WIDTH)
     print(HEIGHT)
 
+    if (path.exists(video_path_v2)):
+        _file = open(video_path_v2, "r")
+        frames = json.loads(_file.read())
+        frames_data = json.dumps(frames)
+        _file.close()
+        return Response(frames_data, mimetype='application/json')
+
     cap = cv2.VideoCapture(video)
 
     frames = []
 
-    with mp.Pool() as pool:
-        futures = []
+    print("starting convertion!")
 
-        while True:
-            ret, frame = cap.read()
+    if (path.exists(video_path_v1)):
+        _file = open(video_path_v1, "r")
+        frames = json.loads(_file.read());
+        _file.close();
+    else:
+        with mp.Pool() as pool:
+            futures = []
 
-            if not ret:
-                break
+            while True:
+                ret, frame = cap.read()
+                # print(ret, frame);
+                if not ret:
+                    break
 
-            future = pool.apply_async(retrieve_pixels, args=(frame, gray_scale, HEIGHT, WIDTH))
-            futures.append(future)
+                future = pool.apply_async(retrieve_pixels, args=(frame, gray_scale, HEIGHT, WIDTH))
+                futures.append(future)
+                # print(future);
 
-            if len(futures) == BATCH_SIZE:
-                for future in futures:
-                    frames.append(future.get())
+                if len(futures) == BATCH_SIZE:
+                    for future in futures:
+                        frames.append(future.get())
 
-                futures = []
+                    futures = []
+    
+    print("Finished part 1/2!")
 
-    frames_data = json.dumps(frames)
+    if (not path.exists(video_path_v1)):
+        _file = open(video_path_v1, "w");
+        _file.write(json.dumps(frames));
+        _file.close();
 
+    newFrames = [];
+    lastUpdatedPixel = [];
+    frameCount = 0;
+    printProgressBar(0, len(frames), prefix = 'Progress:', suffix = 'Complete', length = 50)
+    for frame in frames:
+        i = 0;
+        currentFrame = [];
+        printProgressBar(frameCount, 6576, prefix = 'Progress:', suffix = 'Complete', length = 50)
+        for pixel in frame:
+            if (len(lastUpdatedPixel) < (i+1) or lastUpdatedPixel[i] is None or lastUpdatedPixel[i] != pixel):
+                lastUpdatedPixel.insert(i, pixel);
+                currentFrame.insert(i, pixel);
+            i += 1;
+        newFrames.append(currentFrame);
+        frameCount += 1;
+    
+    printProgressBar(len(frames), len(frames), prefix = 'Progress:', suffix = 'Complete', length = 50)
+    print("Finished part 2/2!")
+
+    frames_data = json.dumps(newFrames);
+
+    if (not path.exists(video_path_v2)):
+        _file = open(video_path_v2, "w");
+        _file.write(frames_data);
+        _file.close();
+    
     cap.release()
 
     return Response(frames_data, mimetype='application/json')
